@@ -98,10 +98,35 @@ struct ggml_metal_context * ggml_metal_init(int n_cb) {
     struct ggml_metal_context * ctx = malloc(sizeof(struct ggml_metal_context));
 
     ctx->n_cb   = n_cb;
-    ctx->device = MTLCreateSystemDefaultDevice();
+
+    // Get the array of all available GPU devices
+    NSArray<id<MTLDevice>>* devices = MTLCopyAllDevices();
+
+    // Initialize maximum working set size to 0
+    NSUInteger maxWorkingSetSize = 0;
+
+    // If there's at least one device, use the first one as a start point.
+    // You might want to add error checking in case there's no available device.
+    if ([devices count] > 0) {
+        for (id<MTLDevice> device in devices) {
+            NSUInteger currentWorkingSetSize = [device recommendedMaxWorkingSetSize];
+            // Check if the current device's working set size is bigger than the current maximum
+            if (currentWorkingSetSize > maxWorkingSetSize) {
+                maxWorkingSetSize = currentWorkingSetSize;
+                ctx->device = device;
+            }
+        }
+    }
+
     ctx->queue  = [ctx->device newCommandQueue];
     ctx->n_buffers = 0;
     ctx->concur_list_len = 0;
+
+    // don't forget to release the array of devices
+    [devices release];
+
+    return ctx;
+}
 
     // determine if we can use MPS
     if (MPSSupportsMTLDevice(ctx->device)) {
