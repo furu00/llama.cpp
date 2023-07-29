@@ -92,18 +92,14 @@ static NSString * const msl_library_source = @"see metal.metal";
 @implementation GGMLMetalClass
 @end
 
-struct ggml_metal_context * ggml_metal_init(int n_cb) {
-    fprintf(stderr, "%s: allocating\n", __func__);
-
-    struct ggml_metal_context * ctx = malloc(sizeof(struct ggml_metal_context));
-
-    ctx->n_cb   = n_cb;
-
+// Function to find the best device
+id<MTLDevice> findBestDevice() {
     // Get the array of all available GPU devices
     NSArray<id<MTLDevice>>* devices = MTLCopyAllDevices();
 
     // Initialize maximum working set size to 0
     NSUInteger maxWorkingSetSize = 0;
+    id<MTLDevice> bestDevice = nil;
 
     // If there's at least one device, use the first one as a start point.
     // You might want to add error checking in case there's no available device.
@@ -113,10 +109,34 @@ struct ggml_metal_context * ggml_metal_init(int n_cb) {
             // Check if the current device's working set size is bigger than the current maximum
             if (currentWorkingSetSize > maxWorkingSetSize) {
                 maxWorkingSetSize = currentWorkingSetSize;
-                ctx->device = device;
+                bestDevice = device;
             }
         }
     }
+
+    // don't forget to release the array of devices
+    [devices release];
+
+    return bestDevice;
+}
+
+struct ggml_metal_context * ggml_metal_init(int n_cb) {
+    fprintf(stderr, "%s: allocating\n", __func__);
+
+    struct ggml_metal_context * ctx = malloc(sizeof(struct ggml_metal_context));
+
+    ctx->n_cb   = n_cb;
+
+    // Find the best device
+    ctx->device = findBestDevice();
+
+    ctx->queue  = [ctx->device newCommandQueue];
+    ctx->n_buffers = 0;
+    ctx->concur_list_len = 0;
+
+    return ctx;
+}
+
 
     ctx->queue  = [ctx->device newCommandQueue];
     ctx->n_buffers = 0;
